@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversor de Unidades Full-Stack</title>
+    <meta name="author" content="Onivaldo Miquelino">      
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: ui-sans-serif, system-ui; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+
+    <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-lg">
+        <h1 class="text-3xl font-bold text-center text-indigo-700 mb-6">Conversor de Unidades (PHP & JS)</h1>
+        
+        <div class="mb-6">
+            <label for="categorySelect" class="block text-sm font-medium text-gray-700 mb-2">Selecione a Categoria de Conversão:</label>
+            <select id="categorySelect" class="block w-full rounded-md border-gray-300 p-2 border focus:ring-indigo-500 focus:border-indigo-500">
+                <option value="temperature">Temperatura</option>
+                <option value="distance">Distância</option>
+            </select>
+        </div>
+
+        <div class="grid grid-cols-5 gap-4 items-end mb-6">
+            
+            <div class="col-span-2">
+                <label for="inputValue" class="block text-sm font-medium text-gray-700">Valor</label>
+                <input type="number" id="inputValue" value="100" class="mt-1 block w-full rounded-md border-gray-300 p-2 border text-lg" step="any">
+            </div>
+
+            <div class="col-span-2">
+                <label for="fromUnit" class="block text-sm font-medium text-gray-700">De</label>
+                <select id="fromUnit" class="block w-full rounded-md border-gray-300 p-2 border">
+                    </select>
+            </div>
+            
+            <div class="col-span-1 text-center pb-2">
+                <span class="text-2xl text-indigo-500">→</span>
+            </div>
+
+            <div class="col-span-3">
+                <p class="text-sm font-medium text-gray-700">Resultado</p>
+                <div class="mt-1 block w-full bg-gray-50 border border-gray-300 rounded-md p-2 min-h-[42px] flex items-center">
+                    <span id="outputValue" class="text-xl font-bold text-gray-800">0.0000</span>
+                </div>
+            </div>
+
+            <div class="col-span-2">
+                <label for="toUnit" class="block text-sm font-medium text-gray-700">Para</label>
+                <select id="toUnit" class="block w-full rounded-md border-gray-300 p-2 border">
+                    </select>
+            </div>
+        </div>
+        
+        <div id="statusComponent" class="p-3 rounded-md bg-gray-100 text-sm text-gray-600">
+            Aguardando entrada de dados...
+        </div>
+    </div>
+
+    <script>
+        // ******************************************************************************
+        // ATENÇÃO: Mude esta URL para o caminho correto do seu arquivo api.php no servidor
+        // ******************************************************************************
+        const API_URL = 'api.php'; 
+
+        // Mapeamento de unidades disponíveis (deve ser o mesmo que no PHP)
+        const UNITS = {
+            temperature: {
+                celsius: "Celsius (°C)",
+                fahrenheit: "Fahrenheit (°F)",
+                kelvin: "Kelvin (K)"
+            },
+            distance: {
+                kilometers: "Quilômetros (km)",
+                miles: "Milhas (mi)",
+                meters: "Metros (m)"
+            }
+        };
+
+        // Elementos DOM
+        const categorySelect = document.getElementById('categorySelect');
+        const inputValue = document.getElementById('inputValue');
+        const fromUnit = document.getElementById('fromUnit');
+        const toUnit = document.getElementById('toUnit');
+        const outputValue = document.getElementById('outputValue');
+        const statusComponent = document.getElementById('statusComponent');
+        
+        let conversionTimeout;
+
+        // --- Funções de API ---
+
+        async function performConversion() {
+            const value = inputValue.value;
+            const from = fromUnit.value;
+            const to = toUnit.value;
+
+            if (isNaN(parseFloat(value)) || !value || !from || !to) {
+                outputValue.textContent = '0.0000';
+                return;
+            }
+            
+            statusComponent.textContent = '⏳ Enviando para o PHP...';
+            statusComponent.className = 'p-3 rounded-md bg-yellow-100 text-sm text-yellow-800';
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ value, from, to })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    outputValue.textContent = result.result;
+                    statusComponent.textContent = '✅ Conversão realizada com sucesso.';
+                    statusComponent.className = 'p-3 rounded-md bg-green-100 text-sm text-green-800';
+                } else {
+                    outputValue.textContent = 'ERRO!';
+                    const error = result.error || 'Erro desconhecido na API.';
+                    statusComponent.textContent = `❌ Erro: ${error}`;
+                    statusComponent.className = 'p-3 rounded-md bg-red-100 text-sm text-red-800';
+                }
+            } catch (error) {
+                outputValue.textContent = 'ERRO!';
+                statusComponent.textContent = `❌ Falha na comunicação: ${error.message}`;
+                statusComponent.className = 'p-3 rounded-md bg-red-100 text-sm text-red-800';
+            }
+        }
+
+        // --- Funções de Interface ---
+
+        function updateUnitOptions() {
+            const category = categorySelect.value;
+            const units = UNITS[category];
+            
+            // Limpa e preenche os selects 'De' e 'Para'
+            fromUnit.innerHTML = '';
+            toUnit.innerHTML = '';
+
+            for (const key in units) {
+                const optionFrom = new Option(units[key], key);
+                const optionTo = new Option(units[key], key);
+                
+                fromUnit.add(optionFrom);
+                toUnit.add(optionTo);
+            }
+
+            // Seleciona uma opção inicial diferente
+            if (category === 'temperature') {
+                fromUnit.value = 'celsius';
+                toUnit.value = 'fahrenheit';
+            } else if (category === 'distance') {
+                fromUnit.value = 'kilometers';
+                toUnit.value = 'miles';
+            }
+            
+            // Executa a conversão inicial ou limpa o resultado
+            handleInputChange(); 
+        }
+
+        function handleInputChange() {
+            clearTimeout(conversionTimeout);
+            // Pequeno delay para esperar o usuário terminar de digitar
+            conversionTimeout = setTimeout(performConversion, 200);
+        }
+
+        // --- Listeners ---
+        categorySelect.addEventListener('change', updateUnitOptions);
+        inputValue.addEventListener('input', handleInputChange);
+        fromUnit.addEventListener('change', handleInputChange);
+        toUnit.addEventListener('change', handleInputChange);
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', () => {
+            updateUnitOptions(); // Preenche as opções e executa a primeira conversão
+        });
+    </script>
+</body>
+</html>
